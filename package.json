@@ -1,0 +1,17 @@
+{
+  "name": "Crawler",
+  "version": "1.0.0",
+  "main": "server.js",
+  "license": "MIT",
+  "dependencies": {
+    "firebase": "^5.4.2",
+    "puppeteer": "^1.8.0"
+  },
+  "scripts": {
+    "start": "babel --watch src/server.js --out-file dist/server.js | nodemon dist/server.js"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-es2015": "^6.24.1"
+  }
+}
