@@ -1,10 +1,10 @@
+let { Firebase } = require('../firebase/Config');
+let { Queue } = require('../functions/Functions');
 let Puppeteer =  require('puppeteer');
-let  { Firebase } = require('../firebase/Config');
 
-//RUN PUPPETEER HEADLESSLY?
-const headless = true;
-let page;
+const headless = false;
 let browser;
+let page;
 
 initBrowser(()=>{
   Crawler();
@@ -44,8 +44,6 @@ const Crawler = async (url) => {
     await Firebase.database().ref('/database/').set(companyData);
     console.log('Saved!')
 
-    browser.close()
-
   } catch(e){
     console.log(e)
   }
@@ -54,25 +52,8 @@ const Crawler = async (url) => {
 const getCompanyData = async (companyIDs)=> {
   try{
 
-    let companiesData = [];
-    console.log('Retreiving Company Info');
-
-    for(let id of companyIDs){
-
-      await page.goto('https://www.macraesbluebook.com/search/company.cfm?company=' + id, { waitUntil: 'load' });
-      let data = await page.evaluate(() => {
-
-        let name = document.querySelector('h1[itemprop="name"]').innerText;
-        let address = document.querySelector('div[itemprop="address"] > span:nth-child(2)').innerText.replace(/(\r\n\t|\n|\r\t)/gm,"");
-        let phone = document.querySelector('span[itemprop="telephone"]').innerText;
-        let website = document.querySelector('a[itemprop="url"]').href;
-
-        return { name, address, phone, website }
-      });
-
-      companiesData.push(data);
-
-    }
+    console.log('Retreiving companies data...')
+    let companiesData = await Queue.start( companyIDs, 3, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData");
 
     console.log('Done retreiving all company data')
     return companiesData
@@ -85,20 +66,8 @@ const getCompanyData = async (companyIDs)=> {
 const getAllCompanyIDs = async (productCodes)=> {
   try{
 
-    let companyIDs = [];
-
     console.log('Retreiving all company IDs...')
-    for(let code of productCodes){
-
-      await page.goto('https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=' + code, { waitUntil: 'load' });
-      let data = await page.evaluate(() => {
-        let result = Array.from(document.querySelectorAll('#divListing > .firstLine > .divLeft > a'));
-        return result.map(u => u.href.split('?company=')[1])
-      });
-
-      companyIDs.push(...data);
-
-    }
+    let companyIDs = await Queue.start( productCodes, 3, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs");
 
     console.log('Done retreiving all company IDs')
 
@@ -116,21 +85,8 @@ const getAllCompanyIDs = async (productCodes)=> {
 const getAllProductCodes = async (headingIDs)=> {
   try{
 
-    let prodIDs = [];
-
-    console.log('Retreiving all prod codes...')
-    for(let id of headingIDs){
-
-      await page.goto('https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=' + id, { waitUntil: 'load' });
-      let data = await page.evaluate(() => {
-        let result = Array.from(document.querySelectorAll('.alinks3'));
-        return result.map(u => u.href.split('?prod_code=')[1])
-      });
-
-      prodIDs.push(...data);
-
-    }
-
+    console.log('Retreiving all Product Codes...')
+    let prodIDs = await Queue.start( headingIDs, 3, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
     console.log('Done retreiving all prod codes')
 
     console.log('Cleaning duplicate entries if any')
@@ -159,6 +115,7 @@ const getAllHeadingIDs = async () =>{
     //CLEAN DUPLICATES IF ANY
     data = new Set([ ...data ]);
     data = [...data]
+    await browser.close()
 
     return data
 
