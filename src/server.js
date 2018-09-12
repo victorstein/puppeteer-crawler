@@ -2,7 +2,7 @@ let { Firebase } = require('../firebase/Config');
 let { Queue } = require('../functions/Functions');
 let Puppeteer =  require('puppeteer');
 
-const headless = false;
+const headless = true;
 let browser;
 let page;
 
@@ -26,23 +26,29 @@ const Crawler = async (url) => {
     await Firebase.database().ref('/headingIDs/').set(headingIDs);
     console.log('Saved!')
 
-    //CRAWL ALL PRODUCT CODES USING HEADING IDs
-    let productCodes = await getAllProductCodes([headingIDs[0]]);
-    console.log('Saving product codes to database...')
-    await Firebase.database().ref('/prodCodes/').set(productCodes);
-    console.log('Saved!')
+    for(let id of headingIDs){
+      //CRAWL ALL PRODUCT CODES USING HEADING IDs
+      let productCodes = await getAllProductCodes([id]);
+      console.log('Saving product codes to database...')
+      await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
+      console.log('Saved!')
 
-    //CRAWL ALL COMPANY IDs USING PRODUCT CODES
-    let companyIDs = await getAllCompanyIDs([productCodes[0]])
-    console.log('Saving company IDs to database...')
-    await Firebase.database().ref('/companyIDs/').set(companyIDs);
-    console.log('Saved!')
+      for(let id of productCodes){
+        //CRAWL ALL COMPANY IDs USING PRODUCT CODES
+        let companyIDs = await getAllCompanyIDs([id])
+        console.log('Saving company IDs to database...')
+        await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
+        console.log('Saved!')
 
-    //CRAWL COMPANY DATA
-    let companyData = await getCompanyData([companyIDs[0]]);
-    console.log('Saving companies data to database...')
-    await Firebase.database().ref('/database/').set(companyData);
-    console.log('Saved!')
+        //CRAWL COMPANY DATA
+        let companyData = await getCompanyData(companyIDs);
+        console.log('Saving companies data to database...')
+        await Firebase.database().ref('/database/'+ id).set(companyData);
+        console.log('Saved!')
+
+      }
+
+    }
 
   } catch(e){
     console.log(e)

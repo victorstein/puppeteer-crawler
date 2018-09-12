@@ -30,7 +30,6 @@ const Queue = {
         let page = await browser.newPage()
         await page.goto( Queue.url + task, { waitUntil: 'load' });
         let data;
-        console.log(Queue.type)
         switch(Queue.type){
           case "prodCodes":
             data = await page.evaluate(() => {
@@ -54,11 +53,11 @@ const Queue = {
 
               return { name, address, phone, website }
             });
-            console.log(data)
           break;
           default:
           break;
         }
+        console.log(data)
         res(data)
       } catch(e) {
         rej(e)

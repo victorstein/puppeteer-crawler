@@ -10,7 +10,7 @@ var _require2 = require('../functions/Functions'),
 
 var Puppeteer = require('puppeteer');
 
-var headless = false;
+var headless = true;
 var browser = void 0;
 var page = void 0;
 
@@ -34,23 +34,69 @@ var Crawler = async function Crawler(url) {
     await Firebase.database().ref('/headingIDs/').set(headingIDs);
     console.log('Saved!');
 
-    //CRAWL ALL PRODUCT CODES USING HEADING IDs
-    var productCodes = await getAllProductCodes([headingIDs[0]]);
-    console.log('Saving product codes to database...');
-    await Firebase.database().ref('/prodCodes/').set(productCodes);
-    console.log('Saved!');
+    var _iteratorNormalCompletion = true;
+    var _didIteratorError = false;
+    var _iteratorError = undefined;
 
-    //CRAWL ALL COMPANY IDs USING PRODUCT CODES
-    var companyIDs = await getAllCompanyIDs([productCodes[0]]);
-    console.log('Saving company IDs to database...');
-    await Firebase.database().ref('/companyIDs/').set(companyIDs);
-    console.log('Saved!');
+    try {
+      for (var _iterator = headingIDs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+        var id = _step.value;
 
-    //CRAWL COMPANY DATA
-    var companyData = await getCompanyData([companyIDs[0]]);
-    console.log('Saving companies data to database...');
-    await Firebase.database().ref('/database/').set(companyData);
-    console.log('Saved!');
+        //CRAWL ALL PRODUCT CODES USING HEADING IDs
+        var productCodes = await getAllProductCodes([id]);
+        console.log('Saving product codes to database...');
+        await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
+        console.log('Saved!');
+
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
+
+        try {
+          for (var _iterator2 = productCodes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var _id = _step2.value;
+
+            //CRAWL ALL COMPANY IDs USING PRODUCT CODES
+            var companyIDs = await getAllCompanyIDs([_id]);
+            console.log('Saving company IDs to database...');
+            await Firebase.database().ref('/companyIDs/' + _id).set(companyIDs);
+            console.log('Saved!');
+
+            //CRAWL COMPANY DATA
+            var companyData = await getCompanyData(companyIDs);
+            console.log('Saving companies data to database...');
+            await Firebase.database().ref('/database/' + _id).set(companyData);
+            console.log('Saved!');
+          }
+        } catch (err) {
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion2 && _iterator2.return) {
+              _iterator2.return();
+            }
+          } finally {
+            if (_didIteratorError2) {
+              throw _iteratorError2;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      _didIteratorError = true;
+      _iteratorError = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion && _iterator.return) {
+          _iterator.return();
+        }
+      } finally {
+        if (_didIteratorError) {
+          throw _iteratorError;
+        }
+      }
+    }
   } catch (e) {
     console.log(e);
   }
