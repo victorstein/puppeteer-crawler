@@ -2,7 +2,7 @@ const Puppeteer =  require('puppeteer');
 const EventEmitter = require('events');
 
 //RUN PUPPETEER HEADLESSLY?
-const headless = false;
+const headless = true;
 let browser;
 
 class MyEmitter extends EventEmitter {}
