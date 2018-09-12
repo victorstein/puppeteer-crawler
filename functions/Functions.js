@@ -2,7 +2,7 @@ const Puppeteer =  require('puppeteer');
 const EventEmitter = require('events');
 
 //RUN PUPPETEER HEADLESSLY?
-const headless = true;
+const headless = false;
 let browser;
 
 class MyEmitter extends EventEmitter {}
@@ -20,6 +20,28 @@ const Queue = {
 
   type: "",
 
+  ipPool: [
+    "--proxy-server=https=64.246.99.22:43401",
+    "--proxy-server=https=199.189.150.158:54321",
+    "--proxy-server=https=74.118.205.95:54321",
+    "--proxy-server=https=66.191.60.87:64312",
+    "--proxy-server=https=71.125.211.240:54321",
+    "--proxy-server=https=12.183.155.234:35776",
+    "--proxy-server=https=68.165.98.146:54321",
+    "--proxy-server=https=40.132.86.82:54321",
+    "--proxy-server=https=66.232.169.170:54321",
+    "--proxy-server=https=66.232.169.161:54321",
+    "--proxy-server=https=74.118.205.104:54321",
+    "--proxy-server=https=66.232.169.168:54321",
+    "--proxy-server=https=74.118.205.120:54321",
+    "--proxy-server=https=74.118.204.221:54321",
+    "--proxy-server=https=72.14.20.134:54321",
+    "--proxy-server=https=71.42.79.206:54321",
+    "--proxy-server=https=50.25.21.149:54321",
+    "--proxy-server=https=74.118.205.83:54321",
+    "--proxy-server=https=162.243.132.149:4570"
+  ],
+
   concurrencyLimit: () =>{
     return (Queue.workers.length <= Queue.concurrency) ? true : false
   },
@@ -27,6 +49,12 @@ const Queue = {
   compute: (task) => {
 	  return new Promise(async (res, rej) =>{
       try{
+        let index = Math.floor(Math.random() * Queue.ipPool.length);
+        console.log(Queue.ipPool[index])
+        browser = await Puppeteer.launch({
+          headless,
+          args: [Queue.ipPool[index]]
+        });
         let page = await browser.newPage()
         await page.goto( Queue.url + task, { waitUntil: 'load' });
         let data;
@@ -105,7 +133,6 @@ const Queue = {
   },
 
   start: async (tasks, concurrency, url, type) =>{
-    browser = await Puppeteer.launch({ headless });
     Queue.tasks = tasks;
     Queue.url = url;
     Queue.type = type;
