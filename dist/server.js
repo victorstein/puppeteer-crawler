@@ -30,9 +30,9 @@ var Crawler = async function Crawler(url) {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     var headingIDs = await getAllHeadingIDs();
-    console.log('Saving heading IDs to database...');
-    await Firebase.database().ref('/headingIDs/').set(headingIDs);
-    console.log('Saved!');
+    //console.log('Saving heading IDs to database...')
+    //await Firebase.database().ref('/headingIDs/').set(headingIDs);
+    //console.log('Saved!')
 
     var _iteratorNormalCompletion = true;
     var _didIteratorError = false;
@@ -44,9 +44,9 @@ var Crawler = async function Crawler(url) {
 
         //CRAWL ALL PRODUCT CODES USING HEADING IDs
         var productCodes = await getAllProductCodes([id]);
-        console.log('Saving product codes to database...');
-        await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
-        console.log('Saved!');
+        //console.log('Saving product codes to database...')
+        //await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
+        //console.log('Saved!')
 
         var _iteratorNormalCompletion2 = true;
         var _didIteratorError2 = false;
@@ -58,9 +58,9 @@ var Crawler = async function Crawler(url) {
 
             //CRAWL ALL COMPANY IDs USING PRODUCT CODES
             var companyIDs = await getAllCompanyIDs([_id]);
-            console.log('Saving company IDs to database...');
-            await Firebase.database().ref('/companyIDs/' + _id).set(companyIDs);
-            console.log('Saved!');
+            //console.log('Saving company IDs to database...')
+            //await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
+            //console.log('Saved!')
 
             //CRAWL COMPANY DATA
             var companyData = await getCompanyData(companyIDs);
@@ -106,7 +106,7 @@ var getCompanyData = async function getCompanyData(companyIDs) {
   try {
 
     console.log('Retreiving companies data...');
-    var companiesData = await Queue.start(companyIDs, 3, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData");
+    var companiesData = await Queue.start(companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData");
 
     console.log('Done retreiving all company data');
     return companiesData;
@@ -119,7 +119,7 @@ var getAllCompanyIDs = async function getAllCompanyIDs(productCodes) {
   try {
 
     console.log('Retreiving all company IDs...');
-    var companyIDs = await Queue.start(productCodes, 3, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs");
+    var companyIDs = await Queue.start(productCodes, 5, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs");
 
     console.log('Done retreiving all company IDs');
 
@@ -137,7 +137,7 @@ var getAllProductCodes = async function getAllProductCodes(headingIDs) {
   try {
 
     console.log('Retreiving all Product Codes...');
-    var prodIDs = await Queue.start(headingIDs, 3, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
+    var prodIDs = await Queue.start(headingIDs, 5, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
     console.log('Done retreiving all prod codes');
 
     console.log('Cleaning duplicate entries if any');
@@ -154,20 +154,13 @@ var getAllHeadingIDs = async function getAllHeadingIDs() {
   try {
 
     console.log('Retreiving all heading IDs');
-    await page.goto('https://www.macraesbluebook.com/', { waitUntil: 'load' });
-    var data = await page.evaluate(function () {
-      var result = Array.from(document.querySelectorAll('.td_tab_index > a'));
-      return result.map(function (u) {
-        return u.href.split('?groupid=')[1];
-      });
-    });
+    var data = await Queue.start([""], 5, 'https://www.macraesbluebook.com/', "headingIDs");
     console.log('Done retreiving all heading IDs');
 
     console.log('Cleaning duplicate entries if any');
     //CLEAN DUPLICATES IF ANY
     data = new Set([].concat(_toConsumableArray(data)));
     data = [].concat(_toConsumableArray(data));
-    await browser.close();
 
     return data;
   } catch (e) {

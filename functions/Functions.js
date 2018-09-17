@@ -2,7 +2,7 @@ const Puppeteer =  require('puppeteer');
 const EventEmitter = require('events');
 
 //RUN PUPPETEER HEADLESSLY?
-const headless = false;
+const headless = true;
 let browser;
 
 class MyEmitter extends EventEmitter {}
@@ -20,76 +20,84 @@ const Queue = {
 
   type: "",
 
-  ipPool: [
-    "--proxy-server=https=64.246.99.22:43401",
-    "--proxy-server=https=199.189.150.158:54321",
-    "--proxy-server=https=74.118.205.95:54321",
-    "--proxy-server=https=66.191.60.87:64312",
-    "--proxy-server=https=71.125.211.240:54321",
-    "--proxy-server=https=12.183.155.234:35776",
-    "--proxy-server=https=68.165.98.146:54321",
-    "--proxy-server=https=40.132.86.82:54321",
-    "--proxy-server=https=66.232.169.170:54321",
-    "--proxy-server=https=66.232.169.161:54321",
-    "--proxy-server=https=74.118.205.104:54321",
-    "--proxy-server=https=66.232.169.168:54321",
-    "--proxy-server=https=74.118.205.120:54321",
-    "--proxy-server=https=74.118.204.221:54321",
-    "--proxy-server=https=72.14.20.134:54321",
-    "--proxy-server=https=71.42.79.206:54321",
-    "--proxy-server=https=50.25.21.149:54321",
-    "--proxy-server=https=74.118.205.83:54321",
-    "--proxy-server=https=162.243.132.149:4570"
-  ],
-
   concurrencyLimit: () =>{
-    return (Queue.workers.length <= Queue.concurrency) ? true : false
+    return (Queue.workers.length < Queue.concurrency) ? true : false
+  },
+
+  checkForCaptcha: () =>{
+    let captchaMessage = document.querySelector("#divPageBody > div > form > table > tbody > tr:nth-child(2) > td");
+    if(captchaMessage){
+      captchaMessage = (captchaMessage.innerText.includes("Shown in Picture")) ? true : false
+    } else {
+      captchaMessage =false
+    }
+    return captchaMessage
   },
 
   compute: (task) => {
 	  return new Promise(async (res, rej) =>{
-      try{
-        let index = Math.floor(Math.random() * Queue.ipPool.length);
-        console.log(Queue.ipPool[index])
-        browser = await Puppeteer.launch({
-          headless,
-          args: [Queue.ipPool[index]]
-        });
-        let page = await browser.newPage()
-        await page.goto( Queue.url + task, { waitUntil: 'load' });
-        let data;
-        switch(Queue.type){
-          case "prodCodes":
-            data = await page.evaluate(() => {
-              let result = Array.from(document.querySelectorAll('.alinks3'));
-              return result.map(u => u.href.split('?prod_code=')[1])
-            });
-          break;
-          case "companyIDs":
-            data = await page.evaluate(() => {
-              let result = Array.from(document.querySelectorAll('#divListing > .firstLine > .divLeft > a'));
-              return result.map(u => u.href.split('?company=')[1])
-            });
-          break;
-          case "finalData":
-            data = await page.evaluate(() => {
+        var page = await browser.newPage()
 
-              let name = document.querySelector('h1[itemprop="name"]').innerText;
-              let address = document.querySelector('div[itemprop="address"] > span:nth-child(2)').innerText.replace(/(\r\n\t|\n|\r\t)/gm,"");
-              let phone = document.querySelector('span[itemprop="telephone"]').innerText;
-              let website = document.querySelector('a[itemprop="url"]').href;
+        try{
 
-              return { name, address, phone, website }
-            });
-          break;
-          default:
-          break;
+          await page.goto( Queue.url + task, { waitUntil: 'load' });
+          let data;
+          if(await page.$("#divPageBody > div > form > table > tbody > tr:nth-child(2) > td") === null){
+            switch(Queue.type){
+              case "prodCodes":
+                data = await page.evaluate(() => {
+                  let result = Array.from(document.querySelectorAll('.alinks3'));
+                  return result.map(u => u.href.split('?prod_code=')[1])
+                });
+              break;
+              case "headingIDs":
+                data = await page.evaluate(() => {
+                  let result = Array.from(document.querySelectorAll('.td_tab_index > a'));
+                  return result.map(u => u.href.split('?groupid=')[1])
+                });
+              break;
+              case "companyIDs":
+                data = await page.evaluate(() => {
+                  let result = Array.from(document.querySelectorAll('#divListing > .firstLine > .divLeft > a'));
+                  return result.map(u => u.href.split('?company=')[1])
+                });
+              break;
+              case "finalData":
+                data = await page.evaluate(() => {
+
+                  let name = document.querySelector('h1[itemprop="name"]');
+                  let address = document.querySelector('div[itemprop="address"] > span:nth-child(2)');
+                  let phone = document.querySelector('span[itemprop="telephone"]');
+                  let website = document.querySelector('a[itemprop="url"]');
+
+                  name = (name) ? name.innerText : ""
+                  address = (address) ? address.innerText.replace(/(\r\n\t|\n|\r\t)/gm,"") : ""
+                  phone = (phone) ? phone.innerText : ""
+                  website = (website) ? website.href : ""
+
+                  return { name, address, phone, website }
+                });
+              break;
+              default:
+              break;
+            }
+            await page.goto('about:blank')
+            await page.close();
+            res(data)
+
+          } else {
+
+            await page.waitFor('.btn-green');
+
+          }
+        } catch(e) {
+          console.log(e + ' in task ' + task)
+          console.log('removed worker')
+          Queue.workers.shift();
+          await page.goto('about:blank')
+          await page.close();
+          Queue.work(task);
         }
-        console.log(data)
-        res(data)
-      } catch(e) {
-        rej(e)
-      }
     })
   },
 
@@ -98,14 +106,16 @@ const Queue = {
     try{
       Queue.workers.push('working');
       let res = await Queue.compute(task);
-      Queue.workers.shift();
       Queue.success(res)
     } catch(e){
-      Queue.failure('error' + task)
+      console.log(e)
+      Queue.failure({ task, error: e })
     }
   },
 
   success: (res) => {
+    console.log('removed worker')
+    Queue.workers.shift();
     if(Array.isArray(res)){
       Queue.result.push(...res)
     } else {
@@ -115,17 +125,24 @@ const Queue = {
   },
 
   failure: (error) => {
+    Queue.workers.shift()
     Queue.result.push(error)
+    Queue.enqueue()
   },
 
   result: [],
 
   enqueue: () => {
+    console.log(
+      'ran enqueue',
+      'the tasks length is: ' + Queue.tasks.length,
+      'the amount of workers is: ' + Queue.workers.length
+    )
   	if(Queue.tasks.length > 0){
   	  if(Queue.concurrencyLimit()){
-  		Queue.work(Queue.tasks[0]);
-  		Queue.tasks.shift()
-  		Queue.enqueue()
+    		Queue.work(Queue.tasks[0]);
+    		Queue.tasks.shift()
+    		Queue.enqueue()
   	  }
   	} else if(Queue.tasks.length < 1 && Queue.workers.length === 0) {
   	  myEmitter.emit('done');
@@ -133,6 +150,9 @@ const Queue = {
   },
 
   start: async (tasks, concurrency, url, type) =>{
+    browser = await Puppeteer.launch({
+      headless
+    });
     Queue.tasks = tasks;
     Queue.url = url;
     Queue.type = type;
@@ -141,7 +161,7 @@ const Queue = {
     Queue.enqueue();
     return new Promise((res, rej)=>{
       myEmitter.on('done', async () => {
-        await browser.close()
+        await browser.disconnect()
         res(Queue.result)
       });
     })
