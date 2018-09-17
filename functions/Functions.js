@@ -162,6 +162,7 @@ const Queue = {
     return new Promise((res, rej)=>{
       myEmitter.on('done', async () => {
         await browser.disconnect()
+        myEmitter.removeAllListeners();
         res(Queue.result)
       });
     })
