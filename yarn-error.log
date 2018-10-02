@@ -24,7 +24,7 @@ npm manifest:
       "puppeteer": "^1.8.0"
     },
     "scripts": {
-      "start": "babel --watch src/server.js --out-dir dist --out-file server.js"
+      "start": "babel --watch src/server.js --out-file dist/server.js | nodemon dist/server.js"
     },
     "devDependencies": {
       "babel-cli": "^6.26.0",
@@ -1744,9 +1744,9 @@ Lockfile:
 
 Trace: 
   Error: Command failed.
-  Exit code: 2
+  Exit code: 3221225786
   Command: C:\WINDOWS\system32\cmd.exe
-  Arguments: /d /s /c babel --watch src/server.js --out-dir dist --out-file server.js
+  Arguments: /d /s /c babel --watch src/server.js --out-file dist/server.js | nodemon dist/server.js
   Directory: C:\Users\apps_development\Documents\Development\Crawler
   Output:
   

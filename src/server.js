@@ -1,12 +1,18 @@
 let { Firebase } = require('../firebase/Config');
-let { Queue } = require('../functions/Functions');
+let { Queue, Intro } = require('../functions/Functions');
 let Puppeteer =  require('puppeteer');
+
+console.clear()
+
+Intro()
 
 const headless = true;
 let browser;
 let page;
 
-initBrowser(()=>{
+initBrowser(async ()=>{
+  await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
+  console.clear()
   Crawler();
 });
 
@@ -22,18 +28,18 @@ const Crawler = async (url) => {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     let headingIDs = await getAllHeadingIDs();
+
     //console.log('Saving heading IDs to database...')
     //await Firebase.database().ref('/headingIDs/').set(headingIDs);
-    //console.log('Saved!')
 
     for(let id of headingIDs){
       //CRAWL ALL PRODUCT CODES USING HEADING IDs
-      let productCodes = await getAllProductCodes([id]);
+      var productCodes = await getAllProductCodes([id.url], id.industry);
       //console.log('Saving product codes to database...')
       //await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
       //console.log('Saved!')
 
-      for(let id of productCodes){
+      for(let id of productCodes.data){
         //CRAWL ALL COMPANY IDs USING PRODUCT CODES
         let companyIDs = await getAllCompanyIDs([id])
         //console.log('Saving company IDs to database...')
@@ -41,11 +47,9 @@ const Crawler = async (url) => {
         //console.log('Saved!')
 
         //CRAWL COMPANY DATA
-        let companyData = await getCompanyData(companyIDs);
-        console.log('Saving companies data to database...')
+        let companyData = await getCompanyData(companyIDs, productCodes.industry);
+        console.log('Adding Information to Database')
         await Firebase.database().ref('/database/'+ id).set(companyData);
-        console.log('Saved!')
-
       }
 
     }
@@ -55,68 +59,64 @@ const Crawler = async (url) => {
   }
 }
 
-const getCompanyData = async (companyIDs)=> {
+var companiesIDsData = [];
+
+const getCompanyData = async (companyIDs, industry)=> {
+  companiesIDsData = [];
   try{
+    let companiesData = await Queue.start( companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
-    console.log('Retreiving companies data...')
-    let companiesData = await Queue.start( companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData");
-
-    console.log('Done retreiving all company data')
     return companiesData
 
   } catch(e){
-    console.log(e)
   }
 }
 
 const getAllCompanyIDs = async (productCodes)=> {
   try{
 
-    console.log('Retreiving all company IDs...')
-    let companyIDs = await Queue.start( productCodes, 5, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs");
+    var codes = (productCodes[0].includes("-")) ? productCodes[0].split("-")[0] : productCodes[0];
+    let page = (productCodes[0].includes("-")) ? productCodes[0].split("-")[1] : 0;
+    page++;
 
-    console.log('Done retreiving all company IDs')
+    let companyIDs = await Queue.start( [productCodes[0]], 1, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs", "", page);
+    companiesIDsData.push(companyIDs[0].result)
+    if(companyIDs[0].next){
+      let append = "-" + page
+      let data = await getAllCompanyIDs([codes+append]);
+      companyIDs[0].result.push(...data);
+    }
 
-    console.log('Cleaning duplicate entries if any')
-    companyIDs = new Set([ ...companyIDs ]);
-    companyIDs = [...companyIDs]
+    let final = companiesIDsData.reduce((x, u) => x.concat(u) ,[]);
+    final = new Set([ ...final ]);
+    final = [...final];
 
-    return companyIDs
+    return final
 
   } catch(e){
     console.log(e)
   }
 }
 
-const getAllProductCodes = async (headingIDs)=> {
+const getAllProductCodes = async (headingIDs, industry)=> {
   try{
 
-    console.log('Retreiving all Product Codes...')
-    let prodIDs = await Queue.start( headingIDs, 5, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
-    console.log('Done retreiving all prod codes')
+    let prodIDs = await Queue.start( headingIDs, 1, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
 
-    console.log('Cleaning duplicate entries if any')
     prodIDs = new Set([ ...prodIDs ]);
-    prodIDs = [...prodIDs]
+    prodIDs = [...prodIDs];
+    prodIDs = { data: prodIDs, industry }
 
     return prodIDs
 
   } catch(e){
-    console.log(e)
   }
 }
 
 const getAllHeadingIDs = async () =>{
   try{
 
-    console.log('Retreiving all heading IDs')
-    let data = await Queue.start( [""], 5, 'https://www.macraesbluebook.com/', "headingIDs");
-    console.log('Done retreiving all heading IDs')
-
-    console.log('Cleaning duplicate entries if any')
-    //CLEAN DUPLICATES IF ANY
-    data = new Set([ ...data ]);
-    data = [...data]
+    let data = await Queue.start( [""], 1, 'https://www.macraesbluebook.com/', "headingIDs");
 
     return data
 

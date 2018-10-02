@@ -6,15 +6,26 @@ var _require = require('../firebase/Config'),
     Firebase = _require.Firebase;
 
 var _require2 = require('../functions/Functions'),
-    Queue = _require2.Queue;
+    Queue = _require2.Queue,
+    Intro = _require2.Intro;
 
 var Puppeteer = require('puppeteer');
+
+console.clear();
+
+Intro();
 
 var headless = true;
 var browser = void 0;
 var page = void 0;
 
-initBrowser(function () {
+initBrowser(async function () {
+  await new Promise(function (res, rej) {
+    return setTimeout(function () {
+      return res();
+    }, 2000);
+  });
+  console.clear();
   Crawler();
 });
 
@@ -30,9 +41,9 @@ var Crawler = async function Crawler(url) {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     var headingIDs = await getAllHeadingIDs();
+
     //console.log('Saving heading IDs to database...')
     //await Firebase.database().ref('/headingIDs/').set(headingIDs);
-    //console.log('Saved!')
 
     var _iteratorNormalCompletion = true;
     var _didIteratorError = false;
@@ -43,7 +54,7 @@ var Crawler = async function Crawler(url) {
         var id = _step.value;
 
         //CRAWL ALL PRODUCT CODES USING HEADING IDs
-        var productCodes = await getAllProductCodes([id]);
+        var productCodes = await getAllProductCodes([id.url], id.industry);
         //console.log('Saving product codes to database...')
         //await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
         //console.log('Saved!')
@@ -53,7 +64,7 @@ var Crawler = async function Crawler(url) {
         var _iteratorError2 = undefined;
 
         try {
-          for (var _iterator2 = productCodes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+          for (var _iterator2 = productCodes.data[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
             var _id = _step2.value;
 
             //CRAWL ALL COMPANY IDs USING PRODUCT CODES
@@ -63,10 +74,9 @@ var Crawler = async function Crawler(url) {
             //console.log('Saved!')
 
             //CRAWL COMPANY DATA
-            var companyData = await getCompanyData(companyIDs);
-            console.log('Saving companies data to database...');
+            var companyData = await getCompanyData(companyIDs, productCodes.industry);
+            console.log('Adding Information to Database');
             await Firebase.database().ref('/database/' + _id).set(companyData);
-            console.log('Saved!');
           }
         } catch (err) {
           _didIteratorError2 = true;
@@ -102,65 +112,63 @@ var Crawler = async function Crawler(url) {
   }
 };
 
-var getCompanyData = async function getCompanyData(companyIDs) {
+var companiesIDsData = [];
+
+var getCompanyData = async function getCompanyData(companyIDs, industry) {
+  companiesIDsData = [];
   try {
+    var companiesData = await Queue.start(companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
-    console.log('Retreiving companies data...');
-    var companiesData = await Queue.start(companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData");
-
-    console.log('Done retreiving all company data');
     return companiesData;
-  } catch (e) {
-    console.log(e);
-  }
+  } catch (e) {}
 };
 
 var getAllCompanyIDs = async function getAllCompanyIDs(productCodes) {
   try {
 
-    console.log('Retreiving all company IDs...');
-    var companyIDs = await Queue.start(productCodes, 5, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs");
+    var codes = productCodes[0].includes("-") ? productCodes[0].split("-")[0] : productCodes[0];
+    var _page = productCodes[0].includes("-") ? productCodes[0].split("-")[1] : 0;
+    _page++;
 
-    console.log('Done retreiving all company IDs');
+    var companyIDs = await Queue.start([productCodes[0]], 1, 'https://www.macraesbluebook.com/search/product_company_list.cfm?prod_code=', "companyIDs", "", _page);
+    companiesIDsData.push(companyIDs[0].result);
+    if (companyIDs[0].next) {
+      var _companyIDs$0$result;
 
-    console.log('Cleaning duplicate entries if any');
-    companyIDs = new Set([].concat(_toConsumableArray(companyIDs)));
-    companyIDs = [].concat(_toConsumableArray(companyIDs));
+      var append = "-" + _page;
+      var data = await getAllCompanyIDs([codes + append]);
+      (_companyIDs$0$result = companyIDs[0].result).push.apply(_companyIDs$0$result, _toConsumableArray(data));
+    }
 
-    return companyIDs;
+    var final = companiesIDsData.reduce(function (x, u) {
+      return x.concat(u);
+    }, []);
+    final = new Set([].concat(_toConsumableArray(final)));
+    final = [].concat(_toConsumableArray(final));
+
+    return final;
   } catch (e) {
     console.log(e);
   }
 };
 
-var getAllProductCodes = async function getAllProductCodes(headingIDs) {
+var getAllProductCodes = async function getAllProductCodes(headingIDs, industry) {
   try {
 
-    console.log('Retreiving all Product Codes...');
-    var prodIDs = await Queue.start(headingIDs, 5, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
-    console.log('Done retreiving all prod codes');
+    var prodIDs = await Queue.start(headingIDs, 1, 'https://www.macraesbluebook.com/menu/product_heading.cfm?groupid=', "prodCodes");
 
-    console.log('Cleaning duplicate entries if any');
     prodIDs = new Set([].concat(_toConsumableArray(prodIDs)));
     prodIDs = [].concat(_toConsumableArray(prodIDs));
+    prodIDs = { data: prodIDs, industry: industry };
 
     return prodIDs;
-  } catch (e) {
-    console.log(e);
-  }
+  } catch (e) {}
 };
 
 var getAllHeadingIDs = async function getAllHeadingIDs() {
   try {
 
-    console.log('Retreiving all heading IDs');
-    var data = await Queue.start([""], 5, 'https://www.macraesbluebook.com/', "headingIDs");
-    console.log('Done retreiving all heading IDs');
-
-    console.log('Cleaning duplicate entries if any');
-    //CLEAN DUPLICATES IF ANY
-    data = new Set([].concat(_toConsumableArray(data)));
-    data = [].concat(_toConsumableArray(data));
+    var data = await Queue.start([""], 1, 'https://www.macraesbluebook.com/', "headingIDs");
 
     return data;
   } catch (e) {

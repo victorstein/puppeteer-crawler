@@ -5,6 +5,22 @@ const EventEmitter = require('events');
 const headless = true;
 let browser;
 
+const Intro = ()=>{
+  console.log('');
+  console.log(`
+ macraesbluebook.com
+
+    _|_|_|  _|_|_|      _|_|    _|          _|  _|        _|_|_|_|  _|_|_|
+  _|        _|    _|  _|    _|  _|          _|  _|        _|        _|    _|
+  _|        _|_|_|    _|_|_|_|  _|    _|    _|  _|        _|_|_|    _|_|_|
+  _|        _|    _|  _|    _|    _|  _|  _|    _|        _|        _|    _|
+    _|_|_|  _|    _|  _|    _|      _|  _|      _|_|_|_|  _|_|_|_|  _|    _|
+
+                                                                              by TFM
+
+  `)
+}
+
 class MyEmitter extends EventEmitter {}
 const myEmitter = new MyEmitter();
 
@@ -16,9 +32,49 @@ const Queue = {
 
   tasks: [],
 
+  originalTask: 0,
+
   url: "",
 
   type: "",
+
+  industry: "",
+
+  page: 1,
+
+  progress: () =>{
+    console.clear()
+
+    let originalTaskLength = Queue.originalTask;
+    let completedTasksLength = originalTaskLength - Queue.tasks.length;
+    let amountOfWorkers = Queue.workers.length;
+    let completedSymbol = '=';
+    let completedPercentage = Math.floor((completedTasksLength*100)/originalTaskLength);
+    let nonCompletedPercentage = 100 - completedPercentage;
+    let intro = "";
+
+    switch(Queue.type){
+      case "headingIDs":
+        intro = `Retreiving all heading IDs...`
+      break;
+      case "prodCodes":
+        intro = `Retreiving all Product Codes...`
+      break;
+      case "companyIDs":
+        intro = `Retreiving all Company IDs...
+      Working in page... ${Queue.page}`
+      break;
+      case "finalData":
+        intro = `Retreiving Companies information for ${Queue.industry} industry...`
+      break;
+    }
+    Intro()
+    console.log(`
+      ${intro}
+      ${completedTasksLength} / ${originalTaskLength} [${completedSymbol.repeat(completedPercentage)}${' '.repeat(nonCompletedPercentage)}] ${completedPercentage}%
+      Amount of workers in queue ${amountOfWorkers}
+    `)
+  },
 
   concurrencyLimit: () =>{
     return (Queue.workers.length < Queue.concurrency) ? true : false
@@ -36,8 +92,7 @@ const Queue = {
 
   compute: (task) => {
 	  return new Promise(async (res, rej) =>{
-        var page = await browser.newPage()
-
+        var page = await browser.newPage();
         try{
 
           await page.goto( Queue.url + task, { waitUntil: 'load' });
@@ -53,13 +108,20 @@ const Queue = {
               case "headingIDs":
                 data = await page.evaluate(() => {
                   let result = Array.from(document.querySelectorAll('.td_tab_index > a'));
-                  return result.map(u => u.href.split('?groupid=')[1])
+                  return result.map(u => ({ url: u.href.split('?groupid=')[1], industry: u.innerText.replace(/(\t|\n|^\s+)/g,"") }) )
                 });
               break;
               case "companyIDs":
-                data = await page.evaluate(() => {
-                  let result = Array.from(document.querySelectorAll('#divListing > .firstLine > .divLeft > a'));
-                  return result.map(u => u.href.split('?company=')[1])
+                data = await page.evaluate(async () => {
+                  var result = Array.from(document.querySelectorAll('#divListing > .firstLine > .divLeft > a'));
+                  result = result.map(u => u.href.split('?company=')[1]);
+
+                  let next = document.querySelector('.button-right');
+                  next = (next) ? true : false;
+                  result = { next, result }
+
+                  return result
+
                 });
               break;
               case "finalData":
@@ -81,6 +143,7 @@ const Queue = {
               default:
               break;
             }
+            data.industry = Queue.industry;
             await page.goto('about:blank')
             await page.close();
             res(data)
@@ -91,8 +154,8 @@ const Queue = {
 
           }
         } catch(e) {
-          console.log(e + ' in task ' + task)
-          console.log('removed worker')
+          //console.log(e + ' in task ' + task)
+          //console.log('removed worker')
           Queue.workers.shift();
           await page.goto('about:blank')
           await page.close();
@@ -102,7 +165,7 @@ const Queue = {
   },
 
   work: async (task) => {
-    console.log('asigned to queue: ' + task)
+    //console.log('asigned to queue: ' + task)
     try{
       Queue.workers.push('working');
       let res = await Queue.compute(task);
@@ -114,7 +177,7 @@ const Queue = {
   },
 
   success: (res) => {
-    console.log('removed worker')
+    //console.log('removed worker')
     Queue.workers.shift();
     if(Array.isArray(res)){
       Queue.result.push(...res)
@@ -133,12 +196,11 @@ const Queue = {
   result: [],
 
   enqueue: () => {
-    console.log(
-      'ran enqueue',
-      'the tasks length is: ' + Queue.tasks.length,
-      'the amount of workers is: ' + Queue.workers.length
-    )
+
+    Queue.progress();
+
   	if(Queue.tasks.length > 0){
+
   	  if(Queue.concurrencyLimit()){
     		Queue.work(Queue.tasks[0]);
     		Queue.tasks.shift()
@@ -149,19 +211,23 @@ const Queue = {
   	}
   },
 
-  start: async (tasks, concurrency, url, type) =>{
+  start: async (tasks, concurrency, url, type, industry, page) =>{
     browser = await Puppeteer.launch({
       headless
     });
     Queue.tasks = tasks;
+    Queue.originalTask = tasks.length;
     Queue.url = url;
     Queue.type = type;
     Queue.result = [];
     Queue.concurrency = (concurrency) ? concurrency : 2;
     Queue.enqueue();
+    Queue.industry = (industry) ? industry : "";
+    Queue.page = (page) ? page : 1;
     return new Promise((res, rej)=>{
       myEmitter.on('done', async () => {
         await browser.disconnect()
+        await browser.close()
         myEmitter.removeAllListeners();
         res(Queue.result)
       });
@@ -170,4 +236,4 @@ const Queue = {
 
 }
 
-module.exports = { Queue }
+module.exports = { Queue, Intro }
