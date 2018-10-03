@@ -64,7 +64,7 @@ var companiesIDsData = [];
 const getCompanyData = async (companyIDs, industry)=> {
   companiesIDsData = [];
   try{
-    let companiesData = await Queue.start( companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
+    let companiesData = await Queue.start( companyIDs, 10, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
     return companiesData
 

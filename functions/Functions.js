@@ -42,6 +42,10 @@ const Queue = {
 
   page: 1,
 
+  isBrowserAvailable: true,
+
+  waiting: false,
+
   progress: () =>{
     console.clear()
 
@@ -52,6 +56,7 @@ const Queue = {
     let completedPercentage = Math.floor((completedTasksLength*100)/originalTaskLength);
     let nonCompletedPercentage = 100 - completedPercentage;
     let intro = "";
+    let waiting = (Queue.waiting) ? "waitting for human verification..." : ""
 
     switch(Queue.type){
       case "headingIDs":
@@ -73,6 +78,7 @@ const Queue = {
       ${intro}
       ${completedTasksLength} / ${originalTaskLength} [${completedSymbol.repeat(completedPercentage)}${' '.repeat(nonCompletedPercentage)}] ${completedPercentage}%
       Amount of workers in queue ${amountOfWorkers}
+      ${waiting}
     `)
   },
 
@@ -93,6 +99,7 @@ const Queue = {
   compute: (task) => {
 	  return new Promise(async (res, rej) =>{
         var page = await browser.newPage();
+        page.setDefaultNavigationTimeout(10000)
         try{
 
           await page.goto( Queue.url + task, { waitUntil: 'load' });
@@ -150,16 +157,61 @@ const Queue = {
 
           } else {
 
-            await page.waitFor('.btn-green');
+            let error = new Error('browser not available')
+            Queue.waiting = true;
 
+            Queue.progress();
+            if(Queue.isBrowserAvailable){
+
+              try{
+                Queue.isBrowserAvailable = false
+                let browser2 = await Puppeteer.launch({
+                  headless: false
+                });
+                let page2 = await browser2.newPage();
+                await page2.goto( 'https://www.macraesbluebook.com/search/company.cfm?company=1569941', { waitUntil: 'load' });
+                await page2.waitFor('.btn-green');
+                await page2.goto('about:blank')
+                await page2.close();
+                await browser2.disconnect()
+                await browser2.close()
+                Queue.isBrowserAvailable = true
+                Queue.waiting = false;
+                Queue.progress();
+                throw error
+              } catch(e){
+                console.log(e)
+                throw error
+              }
+
+            }
+
+            throw error
           }
         } catch(e) {
-          //console.log(e + ' in task ' + task)
+          console.log(e + ' in task ' + task)
+          console.log("browseravailable: " + Queue.isBrowserAvailable)
+          if(e.message.includes("Protocol")){
+            Queue.isBrowserAvailable = true
+            Queue.waiting = false;
+            Queue.progress();
+            Queue.workers.shift();
+            await page.goto('about:blank')
+            await page.close();
+            Queue.work(task);
+          } else if(e.message === "browser not available") {
+            Queue.isBrowserAvailable = true
+            Queue.workers.shift();
+            await page.goto('about:blank')
+            await page.close();
+            Queue.work(task);
+          } else {
           //console.log('removed worker')
-          Queue.workers.shift();
-          await page.goto('about:blank')
-          await page.close();
-          Queue.work(task);
+            Queue.workers.shift();
+            await page.goto('about:blank')
+            await page.close();
+            Queue.work(task);
+          }
         }
     })
   },

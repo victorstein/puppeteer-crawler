@@ -117,7 +117,7 @@ var companiesIDsData = [];
 var getCompanyData = async function getCompanyData(companyIDs, industry) {
   companiesIDsData = [];
   try {
-    var companiesData = await Queue.start(companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
+    var companiesData = await Queue.start(companyIDs, 10, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
     return companiesData;
   } catch (e) {}
