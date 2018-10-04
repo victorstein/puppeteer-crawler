@@ -9,6 +9,8 @@ Intro()
 const headless = true;
 let browser;
 let page;
+let map = {};
+let industry;
 
 initBrowser(async ()=>{
   await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
@@ -28,12 +30,16 @@ const Crawler = async (url) => {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     let headingIDs = await getAllHeadingIDs();
-
+    let map = Object.entries(headingIDs).reduce((x, u)=>{
+      x[u[1].industry.replace(/(\t|\s|^\s+)/g,"")] = []
+      return x
+    }, {})
     //console.log('Saving heading IDs to database...')
     //await Firebase.database().ref('/headingIDs/').set(headingIDs);
 
     for(let id of headingIDs){
       //CRAWL ALL PRODUCT CODES USING HEADING IDs
+      industry = id.industry;
       var productCodes = await getAllProductCodes([id.url], id.industry);
       //console.log('Saving product codes to database...')
       //await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
@@ -41,15 +47,33 @@ const Crawler = async (url) => {
 
       for(let id of productCodes.data){
         //CRAWL ALL COMPANY IDs USING PRODUCT CODES
-        let companyIDs = await getAllCompanyIDs([id])
-        //console.log('Saving company IDs to database...')
+        let companyIDs = await getAllCompanyIDs([id]);
+        let progress = map[industry];
+        let newData = companyIDs;
+
+        let total = progress.concat(newData);
+        total = new Set([ ...total ]);
+        total = [...total];
+
+        map[industry] = total;
+        let difference = total.length - progress.length;
+        Queue.progress();
+        console.log(`Crawled ${newData.length} company IDs... `)
+        await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
+        console.log(`Deleting duplicates from existing records...`)
+        await new Promise((res, rej)=>setTimeout(()=>res(), 1000));
+        console.log(`Saving ${difference} new company IDs to database... `)
+        await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
+        await Firebase.database().ref('/databasemap/').set(map);
+        console.clear();
+        console.log('awaiting new records...');
         //await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
         //console.log('Saved!')
-
+/*
         //CRAWL COMPANY DATA
-        let companyData = await getCompanyData(companyIDs, productCodes.industry);
-        console.log('Adding Information to Database')
-        await Firebase.database().ref('/database/'+ id).set(companyData);
+        //let companyData = await getCompanyData(companyIDs, productCodes.industry);
+        //console.log('Adding Information to Database')
+        //await Firebase.database().ref('/database/'+ id).set(companyData);*/
       }
 
     }
@@ -64,7 +88,7 @@ var companiesIDsData = [];
 const getCompanyData = async (companyIDs, industry)=> {
   companiesIDsData = [];
   try{
-    let companiesData = await Queue.start( companyIDs, 10, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
+    let companiesData = await Queue.start( companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
     return companiesData
 
@@ -86,7 +110,7 @@ const getAllCompanyIDs = async (productCodes)=> {
       let data = await getAllCompanyIDs([codes+append]);
       companyIDs[0].result.push(...data);
     }
-
+    //console.log(companiesIDsData)
     let final = companiesIDsData.reduce((x, u) => x.concat(u) ,[]);
     final = new Set([ ...final ]);
     final = [...final];

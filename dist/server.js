@@ -18,6 +18,8 @@ Intro();
 var headless = true;
 var browser = void 0;
 var page = void 0;
+var map = {};
+var industry = void 0;
 
 initBrowser(async function () {
   await new Promise(function (res, rej) {
@@ -41,7 +43,10 @@ var Crawler = async function Crawler(url) {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     var headingIDs = await getAllHeadingIDs();
-
+    var _map = Object.entries(headingIDs).reduce(function (x, u) {
+      x[u[1].industry.replace(/(\t|\s|^\s+)/g, "")] = [];
+      return x;
+    }, {});
     //console.log('Saving heading IDs to database...')
     //await Firebase.database().ref('/headingIDs/').set(headingIDs);
 
@@ -54,6 +59,7 @@ var Crawler = async function Crawler(url) {
         var id = _step.value;
 
         //CRAWL ALL PRODUCT CODES USING HEADING IDs
+        industry = id.industry;
         var productCodes = await getAllProductCodes([id.url], id.industry);
         //console.log('Saving product codes to database...')
         //await Firebase.database().ref('/prodCodes/' + id).set(productCodes);
@@ -69,14 +75,44 @@ var Crawler = async function Crawler(url) {
 
             //CRAWL ALL COMPANY IDs USING PRODUCT CODES
             var companyIDs = await getAllCompanyIDs([_id]);
-            //console.log('Saving company IDs to database...')
+            var progress = _map[industry];
+            var newData = companyIDs;
+
+            var total = progress.concat(newData);
+            total = new Set([].concat(_toConsumableArray(total)));
+            total = [].concat(_toConsumableArray(total));
+
+            _map[industry] = total;
+            var difference = total.length - progress.length;
+            Queue.progress();
+            console.log('Crawled ' + newData.length + ' company IDs... ');
+            await new Promise(function (res, rej) {
+              return setTimeout(function () {
+                return res();
+              }, 2000);
+            });
+            console.log('Deleting duplicates from existing records...');
+            await new Promise(function (res, rej) {
+              return setTimeout(function () {
+                return res();
+              }, 1000);
+            });
+            console.log('Saving ' + difference + ' new company IDs to database... ');
+            await new Promise(function (res, rej) {
+              return setTimeout(function () {
+                return res();
+              }, 2000);
+            });
+            await Firebase.database().ref('/databasemap/').set(_map);
+            console.clear();
+            console.log('awaiting new records...');
             //await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
             //console.log('Saved!')
-
-            //CRAWL COMPANY DATA
-            var companyData = await getCompanyData(companyIDs, productCodes.industry);
-            console.log('Adding Information to Database');
-            await Firebase.database().ref('/database/' + _id).set(companyData);
+            /*
+                    //CRAWL COMPANY DATA
+                    //let companyData = await getCompanyData(companyIDs, productCodes.industry);
+                    //console.log('Adding Information to Database')
+                    //await Firebase.database().ref('/database/'+ id).set(companyData);*/
           }
         } catch (err) {
           _didIteratorError2 = true;
@@ -117,7 +153,7 @@ var companiesIDsData = [];
 var getCompanyData = async function getCompanyData(companyIDs, industry) {
   companiesIDsData = [];
   try {
-    var companiesData = await Queue.start(companyIDs, 10, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
+    var companiesData = await Queue.start(companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
     return companiesData;
   } catch (e) {}
@@ -139,7 +175,7 @@ var getAllCompanyIDs = async function getAllCompanyIDs(productCodes) {
       var data = await getAllCompanyIDs([codes + append]);
       (_companyIDs$0$result = companyIDs[0].result).push.apply(_companyIDs$0$result, _toConsumableArray(data));
     }
-
+    //console.log(companiesIDsData)
     var final = companiesIDsData.reduce(function (x, u) {
       return x.concat(u);
     }, []);

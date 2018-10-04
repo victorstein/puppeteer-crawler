@@ -6,8 +6,8 @@ const headless = true;
 let browser;
 
 const Intro = ()=>{
-  console.log('');
   console.log(`
+
  macraesbluebook.com
 
     _|_|_|  _|_|_|      _|_|    _|          _|  _|        _|_|_|_|  _|_|_|
@@ -67,7 +67,7 @@ const Queue = {
       break;
       case "companyIDs":
         intro = `Retreiving all Company IDs...
-      Working in page... ${Queue.page}`
+      Working in page... ${Queue.page+1}`
       break;
       case "finalData":
         intro = `Retreiving Companies information for ${Queue.industry} industry...`
@@ -99,7 +99,7 @@ const Queue = {
   compute: (task) => {
 	  return new Promise(async (res, rej) =>{
         var page = await browser.newPage();
-        page.setDefaultNavigationTimeout(10000)
+        page.setDefaultNavigationTimeout(20000)
         try{
 
           await page.goto( Queue.url + task, { waitUntil: 'load' });
@@ -115,7 +115,7 @@ const Queue = {
               case "headingIDs":
                 data = await page.evaluate(() => {
                   let result = Array.from(document.querySelectorAll('.td_tab_index > a'));
-                  return result.map(u => ({ url: u.href.split('?groupid=')[1], industry: u.innerText.replace(/(\t|\n|^\s+)/g,"") }) )
+                  return result.map(u => ({ url: u.href.split('?groupid=')[1], industry: u.innerText.replace(/(\t|\s|^\s+)/g,"") }) )
                 });
               break;
               case "companyIDs":
@@ -186,11 +186,9 @@ const Queue = {
 
             }
 
-            throw error
           }
         } catch(e) {
           console.log(e + ' in task ' + task)
-          console.log("browseravailable: " + Queue.isBrowserAvailable)
           if(e.message.includes("Protocol")){
             Queue.isBrowserAvailable = true
             Queue.waiting = false;
@@ -200,7 +198,6 @@ const Queue = {
             await page.close();
             Queue.work(task);
           } else if(e.message === "browser not available") {
-            Queue.isBrowserAvailable = true
             Queue.workers.shift();
             await page.goto('about:blank')
             await page.close();
