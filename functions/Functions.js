@@ -67,7 +67,7 @@ const Queue = {
       break;
       case "companyIDs":
         intro = `Retreiving all Company IDs...
-      Working in page... ${Queue.page+1}`
+      Working in page... ${Queue.page}`
       break;
       case "finalData":
         intro = `Retreiving Companies information for ${Queue.industry} industry...`
@@ -153,6 +153,7 @@ const Queue = {
             data.industry = Queue.industry;
             await page.goto('about:blank')
             await page.close();
+            Queue.progress();
             res(data)
 
           } else {

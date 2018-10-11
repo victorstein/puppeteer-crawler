@@ -11,6 +11,7 @@ let browser;
 let page;
 let map = {};
 let industry;
+var companiesIDsData = [];
 
 initBrowser(async ()=>{
   await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
@@ -30,6 +31,7 @@ const Crawler = async (url) => {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     let headingIDs = await getAllHeadingIDs();
+    //headingIDs = headingIDs.slice(1);
     let map = Object.entries(headingIDs).reduce((x, u)=>{
       x[u[1].industry.replace(/(\t|\s|^\s+)/g,"")] = []
       return x
@@ -48,25 +50,24 @@ const Crawler = async (url) => {
       for(let id of productCodes.data){
         //CRAWL ALL COMPANY IDs USING PRODUCT CODES
         let companyIDs = await getAllCompanyIDs([id]);
+        companiesIDsData = [];
         let progress = map[industry];
-        let newData = companyIDs;
-
-        let total = progress.concat(newData);
-        total = new Set([ ...total ]);
-        total = [...total];
+        let newData = companyIDs.reduce((x, u) => {
+          x[u] = { crawled: true };
+          return x
+        }, {});
+        let total = Object.assign({}, progress, newData);
 
         map[industry] = total;
-        let difference = total.length - progress.length;
+        let difference = Object.keys(total).length - Object.keys(progress).length;
         Queue.progress();
-        console.log(`Crawled ${newData.length} company IDs... `)
+        console.log(`Crawled ${Object.keys(newData).length} company IDs... `)
         await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
         console.log(`Deleting duplicates from existing records...`)
         await new Promise((res, rej)=>setTimeout(()=>res(), 1000));
         console.log(`Saving ${difference} new company IDs to database... `)
         await new Promise((res, rej)=>setTimeout(()=>res(), 2000));
-        await Firebase.database().ref('/databasemap/').set(map);
-        console.clear();
-        console.log('awaiting new records...');
+        await Firebase.database().ref('/databasemap/'+industry).set(map[industry]);
         //await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
         //console.log('Saved!')
 /*
@@ -83,10 +84,7 @@ const Crawler = async (url) => {
   }
 }
 
-var companiesIDsData = [];
-
 const getCompanyData = async (companyIDs, industry)=> {
-  companiesIDsData = [];
   try{
     let companiesData = await Queue.start( companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 

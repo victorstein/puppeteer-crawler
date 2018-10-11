@@ -20,6 +20,7 @@ var browser = void 0;
 var page = void 0;
 var map = {};
 var industry = void 0;
+var companiesIDsData = [];
 
 initBrowser(async function () {
   await new Promise(function (res, rej) {
@@ -43,6 +44,7 @@ var Crawler = async function Crawler(url) {
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     var headingIDs = await getAllHeadingIDs();
+    //headingIDs = headingIDs.slice(1);
     var _map = Object.entries(headingIDs).reduce(function (x, u) {
       x[u[1].industry.replace(/(\t|\s|^\s+)/g, "")] = [];
       return x;
@@ -75,17 +77,18 @@ var Crawler = async function Crawler(url) {
 
             //CRAWL ALL COMPANY IDs USING PRODUCT CODES
             var companyIDs = await getAllCompanyIDs([_id]);
+            companiesIDsData = [];
             var progress = _map[industry];
-            var newData = companyIDs;
-
-            var total = progress.concat(newData);
-            total = new Set([].concat(_toConsumableArray(total)));
-            total = [].concat(_toConsumableArray(total));
+            var newData = companyIDs.reduce(function (x, u) {
+              x[u] = { crawled: true };
+              return x;
+            }, {});
+            var total = Object.assign({}, progress, newData);
 
             _map[industry] = total;
-            var difference = total.length - progress.length;
+            var difference = Object.keys(total).length - Object.keys(progress).length;
             Queue.progress();
-            console.log('Crawled ' + newData.length + ' company IDs... ');
+            console.log('Crawled ' + Object.keys(newData).length + ' company IDs... ');
             await new Promise(function (res, rej) {
               return setTimeout(function () {
                 return res();
@@ -103,9 +106,7 @@ var Crawler = async function Crawler(url) {
                 return res();
               }, 2000);
             });
-            await Firebase.database().ref('/databasemap/').set(_map);
-            console.clear();
-            console.log('awaiting new records...');
+            await Firebase.database().ref('/databasemap/' + industry).set(_map[industry]);
             //await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
             //console.log('Saved!')
             /*
@@ -148,10 +149,7 @@ var Crawler = async function Crawler(url) {
   }
 };
 
-var companiesIDsData = [];
-
 var getCompanyData = async function getCompanyData(companyIDs, industry) {
-  companiesIDsData = [];
   try {
     var companiesData = await Queue.start(companyIDs, 1, 'https://www.macraesbluebook.com/search/company.cfm?company=', "finalData", industry);
 
