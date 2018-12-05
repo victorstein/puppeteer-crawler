@@ -1,6 +1,9 @@
 let { Firebase } = require('../firebase/Config');
 let { Queue, Intro } = require('../functions/Functions');
+let { data } = require('../crawler')
+let { catData } = require('../catData')
 let Puppeteer =  require('puppeteer');
+var fs = require('fs');
 
 console.clear()
 
@@ -28,6 +31,19 @@ async function initBrowser(callback){
 
 const Crawler = async (url) => {
   try{
+/*
+    console.log('started...')
+    let data = await Firebase.database().ref('/').once("value")
+    data = data.val()
+    data = Object.entries(data.databasemap).reduce((x, u) => {
+    	x[u[0]] = Object.keys(u[1]);
+    	return x
+    }, {});
+
+    fs.writeFile('./crawler.json', JSON.stringify(data) , (err)=>{
+      if(err) throw err;
+      console.log('done')
+    });
 
     //CRAWL ALL THE HEADING IDS AND SAVE TO DATABASE
     let headingIDs = await getAllHeadingIDs();
@@ -70,14 +86,29 @@ const Crawler = async (url) => {
         await Firebase.database().ref('/databasemap/'+industry).set(map[industry]);
         //await Firebase.database().ref('/companyIDs/' + id).set(companyIDs);
         //console.log('Saved!')
-/*
+        */
         //CRAWL COMPANY DATA
-        //let companyData = await getCompanyData(companyIDs, productCodes.industry);
-        //console.log('Adding Information to Database')
-        //await Firebase.database().ref('/database/'+ id).set(companyData);*/
-      }
+        //catData = Object.entries(catData);
+        catData = Object.entries(catData).reduce((x, u ,i) => {
+          if(i > 60){
+            x[u[0]] = u[1]
+            return x
+          }
+          return x
+        }, {});
 
-    }
+        for(const [industry, data] of Object.entries(catData)){
+          let companyData = await getCompanyData(data, industry);
+          console.log('Adding Information to Database')
+          await Firebase.database().ref('/database/'+ industry).set(companyData);
+        }
+
+          //let companyData = await getCompanyData(company[1], company[0]);
+          //console.log('Adding Information to Database')
+          //await Firebase.database().ref('/database/'+ id).set(companyData);
+      //}
+
+   //}
 
   } catch(e){
     console.log(e)
